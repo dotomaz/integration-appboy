@@ -101,7 +101,7 @@
                 return 'Properties did not pass validation for ' + sanitizedEventName;
             }
 
-            reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
+            var reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
             if (reportEvent && reportingService) {
                 reportingService(self, event);
             }
@@ -117,6 +117,9 @@
 
                 if (event.EventDataType == MessageType.Commerce && event.EventCategory == mParticle.CommerceEventType.ProductPurchase) {
                     reportEvent = logPurchaseEvent(event);
+                    if (reportEvent && reportingService) {
+                        reportingService(self, event);
+                    }
                     return;
                 }
 
