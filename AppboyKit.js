@@ -131,7 +131,7 @@
                             }
                         }
                     }
-                } else  if (event.EventDataType == MessageType.PageEvent) {
+                } else if (event.EventDataType == MessageType.PageEvent) {
                     logAppboyEvent(event);
                 }
                 /** There is no current mapping for the ProductAddToCart, ProductAddToWishlist, ProductCheckout, ProductCheckoutOption, ProductClick,
