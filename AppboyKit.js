@@ -137,10 +137,6 @@
                 } else if (event.EventDataType == MessageType.PageEvent) {
                     logAppboyEvent(event);
                 }
-                /** There is no current mapping for the ProductAddToCart, ProductAddToWishlist, ProductCheckout, ProductCheckoutOption, ProductClick,
-                 * ProductImpression, ProductRefund, ProductRemoveFromCart, ProductRemoveFromWishlist, ProductViewDetail, PromotionClick, or PromotionView
-                 * commerce event types.
-                 **/
                 else {
                     return 'Can\'t send event type to forwarder ' + name + ', event type is not supported';
                 }
