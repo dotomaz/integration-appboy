@@ -101,7 +101,7 @@
                 return 'Properties did not pass validation for ' + sanitizedEventName;
             }
 
-            reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
+            var reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
             if (reportEvent && reportingService) {
                 reportingService(self, event);
             }
@@ -117,6 +117,9 @@
 
                 if (event.EventDataType == MessageType.Commerce && event.EventCategory == mParticle.CommerceEventType.ProductPurchase) {
                     reportEvent = logPurchaseEvent(event);
+                    if (reportEvent && reportingService) {
+                        reportingService(self, event);
+                    }
                     return;
                 }
 
@@ -131,13 +134,9 @@
                             }
                         }
                     }
-                } else  if (event.EventDataType == MessageType.PageEvent) {
+                } else if (event.EventDataType == MessageType.PageEvent) {
                     logAppboyEvent(event);
                 }
-                /** There is no current mapping for the ProductAddToCart, ProductAddToWishlist, ProductCheckout, ProductCheckoutOption, ProductClick,
-                 * ProductImpression, ProductRefund, ProductRemoveFromCart, ProductRemoveFromWishlist, ProductViewDetail, PromotionClick, or PromotionView
-                 * commerce event types.
-                 **/
                 else {
                     return 'Can\'t send event type to forwarder ' + name + ', event type is not supported';
                 }
