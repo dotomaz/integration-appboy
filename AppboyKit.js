@@ -223,8 +223,8 @@
                 isTesting = testMode;
                 // 30 min is Appboy default
                 options.sessionTimeoutInSeconds = forwarderSettings.ABKSessionTimeoutKey || 1800;
-                options.sdkFlavor = “mparticle”;
-                options.enableHtmlInAppMessages = true;
+                options.sdkFlavor = 'mparticle';
+                options.enableHtmlInAppMessages = forwarderSettings.enableHtmlInAppMessages;
 
                 if (testMode !== true) {
                     /* eslint-disable */
