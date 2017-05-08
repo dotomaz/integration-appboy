@@ -1,4 +1,4 @@
-//
+/* eslint-disable no-undef */
 //  Copyright 2015 mParticle, Inc.
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,16 @@
 
 (function (window) {
     var name = 'Appboy',
-      MessageType = {
-          PageEvent: 4,
-          Commerce: 16
-      };
+        MessageType = {
+            PageView: 3,
+            PageEvent: 4,
+            Commerce: 16
+        };
 
     var constructor = function () {
         var self = this,
             forwarderSettings,
+            options = {},
             reportingService,
             isInitialized = false,
             isTesting = false,
@@ -50,12 +52,12 @@
                 event.ProductAction.ProductList.forEach(function (product) {
                     if (product.Attributes == null) {
                         product.Attributes = {};
-                    } 
+                    }
                     product.Attributes['Sku'] = product.Sku;
                     var sanitizedProductName = getSanitizedValueForAppboy(String(product.Name));
                     var sanitizedProperties = getSanitizedCustomProperties(product.Attributes);
 
-                    if(sanitizedProperties == null) {
+                    if (sanitizedProperties == null) {
                         return 'Properties did not pass validation for ' + sanitizedProductName;
                     }
 
@@ -65,6 +67,19 @@
                 });
             }
             return reportEvent;
+        }
+
+        function logAppboyPageViewEvent(event) {
+            var sanitizedEventName,
+                sanitizedAttrs,
+                attrs = event.EventAttributes || {};
+
+            attrs.hostname = window.location.hostname;
+            attrs.title = window.document.title
+
+            sanitizedEventName = getSanitizedValueForAppboy(window.location.pathname);
+            sanitizedAttrs = getSanitizedCustomProperties(attrs);
+            appboy.logCustomEvent(sanitizedEventName, sanitizedAttrs);
         }
 
         function setDefaultAttribute(key, value) {
@@ -78,7 +93,7 @@
             }
             else {
                 if (value == null) {
-                    value = "";
+                    value = '';
                 }
                 if (!(typeof value === 'string')) {
                     return 'Can\'t call removeUserAttribute or setUserAttribute on forwarder ' + name + ', removeUserAttribute or setUserAttribute must set this value to a string';
@@ -93,6 +108,20 @@
             }
         }
 
+        function logAppboyEvent(event) {
+            var sanitizedEventName = getSanitizedValueForAppboy(event.EventName);
+            var sanitizedProperties = getSanitizedCustomProperties(event.EventAttributes);
+
+            if (sanitizedProperties == null) {
+                return 'Properties did not pass validation for ' + sanitizedEventName;
+            }
+
+            var reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
+            if (reportEvent && reportingService) {
+                reportingService(self, event);
+            }
+        }
+
         /**************************/
         /** Begin mParticle API **/
         /**************************/
@@ -100,30 +129,34 @@
             var reportEvent = false;
 
             if (isInitialized) {
-
-                if (event.EventDataType == MessageType.PageEvent) {
-                    var sanitizedEventName = getSanitizedValueForAppboy(event.EventName);
-                    var sanitizedProperties = getSanitizedCustomProperties(event.EventAttributes);
-
-                    if(sanitizedProperties == null) {
-                        return 'Properties did not pass validation for ' + sanitizedEventName;
-                    }
-
-                    reportEvent = appboy.logCustomEvent(sanitizedEventName, sanitizedProperties);
-                }
-
-                /** There is no current mapping for the ProductAddToCart, ProductAddToWishlist, ProductCheckout, ProductCheckoutOption, ProductClick,
-                 * ProductImpression, ProductRefund, ProductRemoveFromCart, ProductRemoveFromWishlist, ProductViewDetail, PromotionClick, or PromotionView
-                 * commerce event types.
-                 **/
-                else if (event.EventDataType == MessageType.Commerce && event.EventCategory == mParticle.CommerceEventType.ProductPurchase) {
+                if (event.EventDataType == MessageType.Commerce && event.EventCategory == mParticle.CommerceEventType.ProductPurchase) {
                     reportEvent = logPurchaseEvent(event);
+                    if (reportEvent && reportingService) {
+                        reportingService(self, event);
+                    }
+                    return;
+                }
+                if (event.EventDataType == MessageType.Commerce) {
+                    var listOfPageEvents = mParticle.eCommerce.expandCommerceEvent(event);
+                    if (listOfPageEvents != null) {
+                        for (var i = 0; i < listOfPageEvents.length; i++) {
+                            try {
+                                logAppboyEvent(listOfPageEvents[i]);
+                            }
+                            catch (err) {
+                                return 'Error logging page event' + err.message;
+                            }
+                        }
+                    }
+                } else if (event.EventDataType == MessageType.PageEvent) {
+                    logAppboyEvent(event);
+                } else if (event.EventDataType == MessageType.PageView) {
+                    if (forwarderSettings.forwardScreenViews) {
+                        logAppboyPageViewEvent(event);
+                    }
                 }
                 else {
                     return 'Can\'t send event type to forwarder ' + name + ', event type is not supported';
-                }
-                if (reportEvent && reportingService) {
-                    reportingService(self, event);
                 }
             }
             else {
@@ -183,24 +216,29 @@
             }
         }
 
-        function initForwarder(settings, service, testMode, trackerId, userAttributes, userIdentities, appVersion, appName) {
+        function initForwarder(settings, service, testMode, trackerId, userAttributes, userIdentities, appVersion, appName) {  // eslint-disable-line no-unused-vars
             try {
                 forwarderSettings = settings;
                 reportingService = service;
                 isTesting = testMode;
+                // 30 min is Appboy default
+                options.sessionTimeoutInSeconds = forwarderSettings.ABKSessionTimeoutKey || 1800;
+                options.sdkFlavor = “mparticle”;
+                options.enableHtmlInAppMessages = true;
 
                 if (testMode !== true) {
+                    /* eslint-disable */
                     +function() {
                         var head = document.getElementsByTagName('head')[0],
                           link = document.createElement('link');
-                        link.href = 'https://js.appboycdn.com/web-sdk/1.4/appboy.min.css';
+                        link.href = 'https://js.appboycdn.com/web-sdk/1.6/appboy.min.css';
                         link.rel = 'stylesheet';
                         link.type = 'text/css';
 
-                        var loadjs = +function(a,p,P,b,y){
+                        +function(a,p,P,b,y){
                             appboy={};for(var s="destroy toggleAppboyLogging setLogger openSession changeUser requestImmediateDataFlush requestFeedRefresh subscribeToFeedUpdates logCardImpressions logCardClick logFeedDisplayed requestInAppMessageRefresh logInAppMessageImpression logInAppMessageClick logInAppMessageButtonClick subscribeToNewInAppMessages removeSubscription removeAllSubscriptions logCustomEvent logPurchase isPushSupported isPushBlocked registerAppboyPushMessages unregisterAppboyPushMessages submitFeedback ab ab.User ab.User.Genders ab.User.NotificationSubscriptionTypes ab.User.prototype.getUserId ab.User.prototype.setFirstName ab.User.prototype.setLastName ab.User.prototype.setEmail ab.User.prototype.setGender ab.User.prototype.setDateOfBirth ab.User.prototype.setCountry ab.User.prototype.setHomeCity ab.User.prototype.setEmailNotificationSubscriptionType ab.User.prototype.setPushNotificationSubscriptionType ab.User.prototype.setPhoneNumber ab.User.prototype.setAvatarImageUrl ab.User.prototype.setLastKnownLocation ab.User.prototype.setUserAttribute ab.User.prototype.setCustomUserAttribute ab.User.prototype.addToCustomAttributeArray ab.User.prototype.removeFromCustomAttributeArray ab.User.prototype.incrementCustomUserAttribute ab.InAppMessage ab.InAppMessage.SlideFrom ab.InAppMessage.ClickAction ab.InAppMessage.DismissType ab.InAppMessage.OpenTarget ab.InAppMessage.prototype.subscribeToClickedEvent ab.InAppMessage.prototype.subscribeToDismissedEvent ab.InAppMessage.prototype.removeSubscription ab.InAppMessage.prototype.removeAllSubscriptions ab.InAppMessage.Button ab.InAppMessage.Button.prototype.subscribeToClickedEvent ab.InAppMessage.Button.prototype.removeSubscription ab.InAppMessage.Button.prototype.removeAllSubscriptions ab.SlideUpMessage ab.ModalMessage ab.FullScreenMessage ab.ControlMessage ab.Feed ab.Feed.prototype.getUnreadCardCount ab.Card ab.ClassicCard ab.CaptionedImage ab.Banner display display.automaticallyShowNewInAppMessages display.showInAppMessage display.showFeed display.destroyFeed display.toggleFeed sharedLib".split(" "),i=0;i<s.length;i++){for(var k=appboy,l=s[i].split("."),j=0;j<l.length-1;j++)k=k[l[j]];k[l[j]]=function(){}}appboy.initialize=function(){console&&console.log("Appboy cannot be loaded - this is usually due to strict corporate firewalls or ad blockers.")};appboy.getUser=function(){return new appboy.ab.User};appboy.getCachedFeed=function(){return new appboy.ab.Feed};
                             (y = a.createElement(p)).type = 'text/javascript';
-                            y.src = 'https://js.appboycdn.com/web-sdk/1.4/appboy.min.js';
+                            y.src = 'https://js.appboycdn.com/web-sdk/1.6/appboy.min.js';
                             (c = a.getElementsByTagName(p)[0]).parentNode.insertBefore(y, c);
                             if (y.addEventListener) {
                               y.addEventListener("load", b, false);
@@ -208,18 +246,17 @@
                               y.onreadystatechange = b;
                             }
                         }(document, 'script', 'link', function () {
-                            if (!(appboy.initialize(forwarderSettings.apiKey))) {
+                            if (!(appboy.initialize(forwarderSettings.apiKey, options))) {
                                 return 'Failed to initialize: ' + name;
                             }
-                            appboy.display.automaticallyShowNewInAppMessages();
+
                             appboy.openSession();
                             appboy.requestInAppMessageRefresh();
 
                             isInitialized = true;
 
-                            if(eventQueue && eventQueue.length > 0) {
+                            if (eventQueue && eventQueue.length > 0) {
                                 // Process any events that may have been queued up while forwarder was being initialized.
-                                
                                 for(var i = 0; i < eventQueue.length; i++) {
                                     processEvent(eventQueue[i]);
                                 }
@@ -228,24 +265,21 @@
                             }
                         });
 
-                        if (link.addEventListener) {
-                            link.addEventListener('load', loadjs, false);
-                        }
-                        else if (link.readyState){
-                            link.onreadystatechange = loadjs
-                        }
                         head.appendChild(link);
                     }();
+                    /* eslint-enable */
                 }
                 else {
-                    if (!(appboy.initialize(forwarderSettings.apiKey))) {
+                    if (!(appboy.initialize(forwarderSettings.apiKey, options))) {
                         return 'Failed to initialize: ' + name;
                     }
-                    appboy.display.automaticallyShowNewInAppMessages();
+
                     appboy.openSession();
                     appboy.requestInAppMessageRefresh();
-
                     isInitialized = true;
+                }
+                if (forwarderSettings.register_inapp) {
+                    appboy.display.automaticallyShowNewInAppMessages();
                 }
                 return 'Successfully initialized: ' + name;
             }
@@ -257,22 +291,14 @@
         /** End mParticle API **/
         /**************************/
 
-        function isArray(value) {
-            if (Array.isArray) {
-                return Array.isArray(value);
-            }
-            return (Object.prototype.toString.call(value) === '[object Array]');
-        }
-
         function getSanitizedStringForAppboy(value) {
             if (typeof(value) === 'string') {
-                if (value.substr(0, 1) === "$") {
-                    return value.replace(/^\$+/g, '')
+                if (value.substr(0, 1) === '$') {
+                    return value.replace(/^\$+/g, '');
                 } else {
                     return value;
                 }
             }
-
             return null;
         }
 
@@ -281,7 +307,7 @@
                 return getSanitizedStringForAppboy(value);
             }
 
-            if (isArray(value)) {
+            if (Array.isArray(value)) {
                 var sanitizedArray = [];
                 for (var i in value) {
                     var element = value[i];
@@ -289,7 +315,6 @@
                     if (sanitizedElement == null) {
                         return null;
                     }
-                    
                     sanitizedArray.push(sanitizedElement);
                 }
                 return sanitizedArray;
@@ -298,25 +323,24 @@
         }
 
         function getSanitizedCustomProperties(customProperties) {
-            var sanitizedProperties = {};
-            
+            var sanitizedProperties = {}, value, sanitizedPropertyName, sanitizedValue;
+
             if (customProperties == null) {
                 customProperties = {};
             }
 
             if (typeof(customProperties) !== 'object') {
-              return null;
+                return null;
             }
 
             for (var propertyName in customProperties) {
-              var value = customProperties[propertyName];
-              var sanitizedPropertyName = getSanitizedValueForAppboy(propertyName);
-              var sanitizedValue = typeof(value) === 'string' ? getSanitizedValueForAppboy(value) : value;
-              sanitizedProperties[sanitizedPropertyName] = sanitizedValue;
+                value = customProperties[propertyName];
+                sanitizedPropertyName = getSanitizedValueForAppboy(propertyName);
+                sanitizedValue = typeof(value) === 'string' ? getSanitizedValueForAppboy(value) : value;
+                sanitizedProperties[sanitizedPropertyName] = sanitizedValue;
             }
-
             return sanitizedProperties;
-        };
+        }
 
         this.init = initForwarder;
         this.process = processEvent;
